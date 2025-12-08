@@ -1,0 +1,650 @@
+{
+  "name": "Pinecone Trainig AI",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "update",
+        "fileId": {
+          "__rl": true,
+          "value": "https://docs.google.com/document/d/1dfyoztLU8byDXm2OAtUbZnU8WEakSJ1WqKQNjM2TpmM/edit?usp=sharing",
+          "mode": "url",
+          "__regex": "https:\\/\\/(?:drive|docs)\\.google\\.com(?:\\/.*|)\\/d\\/([0-9a-zA-Z\\-_]+)(?:\\/.*|)"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -576,
+        -784
+      ],
+      "id": "f2f0cab6-f2d6-412e-94c4-2472634e65ed",
+      "name": "search_file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "qVqHwDbpIV0aFMxh",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "=https://docs.google.com/document/d/1dfyoztLU8byDXm2OAtUbZnU8WEakSJ1WqKQNjM2TpmM/edit?usp=sharing",
+          "mode": "url"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -352,
+        -784
+      ],
+      "id": "9316c1d5-e9b9-446c-bfca-5bf1435ef47b",
+      "name": "dowload",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "oXLUpqmKNtgvN0oc",
+          "name": "Google Drive account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        192,
+        -608
+      ],
+      "id": "a86bb7a3-b52e-4cb5-8c96-83053c174fe6",
+      "name": "Recursive Character Text Splitter"
+    },
+    {
+      "parameters": {
+        "content": "## Upload tài liệu",
+        "height": 400,
+        "width": 1480,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -896,
+        -880
+      ],
+      "typeVersion": 1,
+      "id": "1f8df4a5-2e57-49a8-8225-2113db27df9f",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "=## Overview:\n- Bạn là AI trợ lý riêng của người dùng. Nhiệm vụ của bạn là tiếp nhận và hỗ trợ giải đáp thắc mắc của người dùng dựa trên tài liệu nội bộ\n\n## Công Cụ:\n- `dulieu`: Chứa dữ liệu nội bộ, dùng để tìm kiếm thông tin trước khi đưa ra phản hồi\n\n## Hướng dẫn:\n- Luôn gọi công cụ `dulieu` để tìm kiếm thông tin trước khi phản hồi\n- Không tự ý tìm kiếm thông tin bên ngoài\n- Nếu trong `dulieu` không có thông tin, phản hồi chưa có thông tin\n- Giao tiếp chuyên nghiệp, lịch sự"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -368,
+        -336
+      ],
+      "id": "89d147eb-5dd6-41ef-9ca6-ea144c26484e",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -544,
+        -336
+      ],
+      "id": "c78e6b09-03a5-4d77-8658-08c4917b76d8",
+      "name": "When chat message received",
+      "webhookId": "0a30838e-59c4-484c-8b87-2d84dc78e992"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -272,
+        -128
+      ],
+      "id": "33be3c2f-3f6d-4a07-9501-824988538d32",
+      "name": "Window Buffer Memory"
+    },
+    {
+      "parameters": {
+        "name": "dulieu",
+        "description": "Chứa dữ liệu nội bộ, truy vấn để tìm thông tin trả lời câu hỏi của người dùng",
+        "topK": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Limit', ``, 'number') }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        -288
+      ],
+      "id": "d8758dc2-4562-4a3b-a2be-0e20c2acb327",
+      "name": "Answer questions with a vector store"
+    },
+    {
+      "parameters": {
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "dulieunoibo",
+          "mode": "list",
+          "cachedResultName": "dulieunoibo"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        -144
+      ],
+      "id": "8cbbbc43-93a9-442f-b1a2-24144c3a59fd",
+      "name": "Pinecone Vector Store1",
+      "credentials": {
+        "pineconeApi": {
+          "id": "QlXxjbwGcY0K6ijj",
+          "name": "PineconeApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Chat",
+        "height": 560,
+        "width": 1060,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -656,
+        -448
+      ],
+      "typeVersion": 1,
+      "id": "30705549-8aa5-41e2-8178-dd2f5f669cbe",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -96,
+        -800
+      ],
+      "id": "54324f4a-69e2-43d0-ae95-146c43b54a76",
+      "name": "Loop Over Items1"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "dulieunoibo",
+          "mode": "list",
+          "cachedResultName": "dulieunoibo"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1,
+      "position": [
+        176,
+        -848
+      ],
+      "id": "ef4b1f25-9a03-4d1e-b50f-3a0378eb7985",
+      "name": "Pinecone Vector Store2",
+      "credentials": {
+        "pineconeApi": {
+          "id": "QlXxjbwGcY0K6ijj",
+          "name": "PineconeApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [
+        336,
+        -656
+      ],
+      "id": "af220213-4bd0-4dd3-9f4d-e8e7d60953e7",
+      "name": "Default Data Loader1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -816,
+        -768
+      ],
+      "id": "210d2fb7-6a07-494c-a3fd-ef6d44dd970d",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        112,
+        -688
+      ],
+      "id": "3f313a1b-1f67-4266-99b8-487d11b4df5f",
+      "name": "Embeddings OpenAI",
+      "credentials": {
+        "openAiApi": {
+          "id": "dlVCAwMtYzCn5BnZ",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -512,
+        -128
+      ],
+      "id": "566d0c3c-bb3d-415d-b28c-9e5d463d2126",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "dlVCAwMtYzCn5BnZ",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        32,
+        64
+      ],
+      "id": "b7305668-c260-44bf-b996-0f1c7c0a6ca1",
+      "name": "Embeddings OpenAI1",
+      "credentials": {
+        "openAiApi": {
+          "id": "dlVCAwMtYzCn5BnZ",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Format chat data để lưu vào Supabase\nconst chatData = $input.first().json;\nconst webhookData = $('When chat message received').first().json;\n\nreturn [{\n  json: {\n    session_id: webhookData?.body?.sessionId || webhookData?.sessionId || 'default-session',\n    user_message: webhookData?.body?.message || webhookData?.message || chatData?.input || '',\n    ai_response: chatData?.output || chatData?.text || chatData?.response || '',\n    timestamp: new Date().toISOString(),\n    metadata: {\n      model: 'gpt-4.1-mini',\n      source: 'n8n_workflow'\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        -336
+      ],
+      "id": "supabase-chat-formatter-001",
+      "name": "Format Chat Data"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "chat_history"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "session_id": "={{ $json.session_id }}",
+            "user_message": "={{ $json.user_message }}",
+            "ai_response": "={{ $json.ai_response }}",
+            "timestamp": "={{ $json.timestamp }}",
+            "metadata": "={{ $json.metadata }}"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        48,
+        -336
+      ],
+      "id": "supabase-chat-save-001",
+      "name": "Save Chat to Supabase",
+      "credentials": {
+        "postgres": {
+          "id": "supabase-credentials-placeholder",
+          "name": "Supabase"
+        }
+      },
+      "note": "Lưu chat history vào Supabase. Cần cấu hình Supabase credentials trong n8n."
+    },
+    {
+      "parameters": {
+        "functionCode": "// Format upload metadata để lưu vào Supabase\nconst inputData = $input.first().json;\nconst fileData = $('dowload').first().json;\n\nreturn [{\n  json: {\n    file_id: inputData?.fileId || fileData?.id || '',\n    file_url: inputData?.fileUrl || fileData?.webViewLink || '',\n    file_name: fileData?.name || '',\n    file_size: fileData?.size || 0,\n    upload_status: 'completed',\n    uploaded_at: new Date().toISOString(),\n    metadata: {\n      mime_type: fileData?.mimeType || '',\n      source: 'google_drive'\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        400,
+        -848
+      ],
+      "id": "supabase-upload-formatter-001",
+      "name": "Format Upload Data"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "document_uploads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "file_id": "={{ $json.file_id }}",
+            "file_url": "={{ $json.file_url }}",
+            "file_name": "={{ $json.file_name }}",
+            "file_size": "={{ $json.file_size }}",
+            "upload_status": "={{ $json.upload_status }}",
+            "uploaded_at": "={{ $json.uploaded_at }}",
+            "metadata": "={{ $json.metadata }}"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        608,
+        -848
+      ],
+      "id": "supabase-upload-save-001",
+      "name": "Save Upload to Supabase",
+      "credentials": {
+        "postgres": {
+          "id": "supabase-credentials-placeholder",
+          "name": "Supabase"
+        }
+      },
+      "note": "Lưu metadata upload vào Supabase. Cần cấu hình Supabase credentials trong n8n."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "search_file": {
+      "main": [
+        [
+          {
+            "node": "dowload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "dowload": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader1",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer questions with a vector store": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinecone Vector Store1": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "Answer questions with a vector store",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Pinecone Vector Store2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinecone Vector Store2": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Format Upload Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Upload Data": {
+      "main": [
+        [
+          {
+            "node": "Save Upload to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Upload to Supabase": {
+      "main": [
+        []
+      ]
+    },
+    "Default Data Loader1": {
+      "ai_document": [
+        [
+          {
+            "node": "Pinecone Vector Store2",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "search_file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone Vector Store2",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone Vector Store1",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Format Chat Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Chat Data": {
+      "main": [
+        [
+          {
+            "node": "Save Chat to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Chat to Supabase": {
+      "main": [
+        []
+      ]
+    },
+    "Format Upload Data": {
+      "main": [
+        [
+          {
+            "node": "Save Upload to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Upload to Supabase": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f868ef2f-408c-456f-8e0e-00cee7f5eb68",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "bea100b4bbe4f306726f994593aec99dcf03be81c3260422ce5d09ae18554824"
+  },
+  "id": "29VVaah6aHg7xOwc",
+  "tags": []
+}

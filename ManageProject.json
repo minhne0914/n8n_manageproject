@@ -1,0 +1,539 @@
+{
+  "name": "ManageProject",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "project-input",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "2578409e-19d1-453c-bd9c-2847b8b61868",
+      "name": "Project Input Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -1424,
+        -16
+      ],
+      "webhookId": "project-input-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "const inputData = $input.first().json;\nconsole.log('Project Input Processing Started:', { timestamp: new Date().toISOString(), project_name: inputData.project_name, user_id: inputData.headers?.['x-user-id'] || 'anonymous' });\nconst metrics = { processing_start_time: Date.now(), input_size: JSON.stringify(inputData).length, has_attachments: Array.isArray(inputData.attachments) && inputData.attachments.length > 0, validation_passed: true };\nreturn [{ json: { ...inputData, metrics } }];"
+      },
+      "id": "0c514631-4e27-45c5-a342-b6ef538efbf0",
+      "name": "Logging & Monitoring",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1232,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Lấy đúng payload: ưu tiên .data (nếu node trước đã bọc lại), nếu không thì .body từ Webhook, cuối cùng mới đến root\nconst raw = $input.first().json;\nlet inputData = raw?.data ?? raw?.body ?? raw;\n\n// Nếu lỡ là chuỗi JSON thì parse\nif (typeof inputData === 'string') {\n  try { inputData = JSON.parse(inputData); } catch (e) {}\n}\n\nconst errors = [];\n\n// Validate các trường bắt buộc\nif (!inputData.project_name) errors.push('Project name is required');\nif (!inputData.description || inputData.description.length < 10) errors.push('Description must be at least 10 characters');\n\nif (!inputData.deadline) {\n  errors.push('Deadline is required');\n} else {\n  const deadline = new Date(inputData.deadline);\n  if (isNaN(deadline.getTime()) || deadline <= new Date()) {\n    errors.push('Deadline must be in the future');\n  }\n}\n\n// Validate tùy chọn\nif (inputData.budget !== undefined && (typeof inputData.budget !== 'number' || inputData.budget < 0)) {\n  errors.push('Budget must be a positive number');\n}\nif (inputData.team_size !== undefined && (inputData.team_size < 1 || inputData.team_size > 50)) {\n  errors.push('Team size must be between 1 and 50');\n}\nif (inputData.priority && !['high','medium','low'].includes(inputData.priority)) {\n  errors.push('Priority must be high, medium, or low');\n}\n\n// Trả lỗi nếu có\nif (errors.length > 0) {\n  return [{ json: { success: false, errors, status_code: 400 } }];\n}\n\n// Sanitize & chuẩn hoá dữ liệu để node sau dùng\nconst sanitizedData = {\n  project_name: String(inputData.project_name || '').trim(),\n  description: String(inputData.description || '').trim(),\n  requirements: String(inputData.requirements || '').trim(),\n  deadline: inputData.deadline,\n  budget: inputData.budget ?? 0,\n  team_size: inputData.team_size ?? 1,\n  priority: inputData.priority || 'medium',\n  attachments: Array.isArray(inputData.attachments) ? inputData.attachments : [],\n  metadata: {\n    source: 'webhook',\n    timestamp: new Date().toISOString(),\n    // nếu bạn cần các header từ envelope gốc:\n    headers: raw?.headers || {}\n  }\n};\n\n// Trả về theo chuẩn: node tiếp theo sẽ đọc ở .data\nreturn [{ json: { success: true, data: sanitizedData, status_code: 200 } }];\n"
+      },
+      "id": "6e55d874-8688-4ec4-820a-11e4ea0abf56",
+      "name": "Input Validator",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const errorData = $input.first().json; console.error('Validation Error:', errorData.errors); return [{ json: { error:'Validation Failed', message:'Input data validation failed', details:errorData.errors, status_code:400, timestamp:new Date().toISOString() } }];"
+      },
+      "id": "a2f66912-bbbc-4e36-832a-a9c4c8f8f366",
+      "name": "Validation Error Handler",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -832,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const inputData = $input.first().json;\nconsole.log('Text Extractor - Input data keys:', Object.keys(inputData));\nif (!inputData.project_name) { return [{ json: { success:false, error:'Missing project_name in input data', received_data: inputData } }]; }\nconst extractedData = { project_info: { name: inputData.project_name, description: inputData.description, requirements: inputData.requirements }, extracted_requirements: [], dependencies: [], constraints: [], assumptions: [], complexity_indicators: [] };\nconst textToAnalyze = `${inputData.description} ${inputData.requirements || ''}`;\nconst sentences = textToAnalyze.split(/[.!?]+/);\nconst reqKw = ['must','should','need','require','expect','implement','create','build','develop','design'];\nsentences.forEach(s=>{ if (reqKw.some(k=>s.toLowerCase().includes(k))) extractedData.extracted_requirements.push({ type:'functional', description:s.trim(), priority:'medium', complexity:'medium' }); });\nconst depKw=['depend','require','need','before','after']; sentences.forEach(s=>{ if (depKw.some(k=>s.toLowerCase().includes(k))) extractedData.dependencies.push(s.trim()); });\nconst consKw=['limit','constraint','restrict','cannot','must not']; sentences.forEach(s=>{ if (consKw.some(k=>s.toLowerCase().includes(k))) extractedData.constraints.push(s.trim()); });\nconst asmKw=['assume','assumption','if','when','suppose']; sentences.forEach(s=>{ if (asmKw.some(k=>s.toLowerCase().includes(k))) extractedData.assumptions.push(s.trim()); });\nconst cxKw={ high:['complex','difficult','challenging','advanced','sophisticated'], medium:['moderate','standard','typical','normal'], low:['simple','basic','easy','straightforward'] };\nObject.keys(cxKw).forEach(level=>{ if (cxKw[level].some(k=>textToAnalyze.toLowerCase().includes(k))) extractedData.complexity_indicators.push(level); });\nif (Array.isArray(inputData.attachments) && inputData.attachments.length){ extractedData.attachments_info = inputData.attachments.map(a=>({ filename:a.filename, content_type:a.content_type, size:a.size, processed:false })); }\nreturn [{ json: { success:true, extracted_data: extractedData, original_data: inputData } }];"
+      },
+      "id": "8e3750a8-0fae-4abb-8903-3284873e25c5",
+      "name": "Text Extractor",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -880,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const errorData = $input.first().json; console.error('Project Input Processing Error:', errorData); return [{ json: errorData }];"
+      },
+      "id": "e2ca373a-2774-447e-bd27-d435018e00d9",
+      "name": "Error Logging",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -608,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "445a51c6-8565-44c2-a36e-411e3470d4d3",
+      "name": "Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -416,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an expert software project analyst.\n\nAnalyze the following project data and produce a structured project analysis.\n\nPreserve the project's name and description exactly as they appear in the input.\n\nYou MUST respond only with a valid JSON object — no markdown, explanations, or commentary.\n\nFollow this structure exactly:\n{\n  \"project_name\": \"{{ $json.received_data.data.project_name }}\",\n  \"project_description\": \"{{ $json.received_data.data.description }}\",\n  \"complexity_score\": \"number (0 to 1)\",\n  \"risks\": [\"list of identified project risks\"],\n  \"resource_needs\": {\n    \"estimated_hours\": \"number\",\n    \"required_skills\": [\"list of technical or management skills\"],\n    \"team_size\": \"number\"\n  },\n  \"timeline_estimate\": {\n    \"optimistic\": \"number (days)\",\n    \"realistic\": \"number (days)\",\n    \"pessimistic\": \"number (days)\"\n  },\n  \"recommendations\": [\"list of concrete and actionable recommendations\"]\n}\n\nHere is the project data to analyze:\n{{ $json.received_data.data }}\n",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        -736,
+        16
+      ],
+      "id": "33173358-afdf-49bb-9ee2-da5cea98fc48",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -752,
+        208
+      ],
+      "id": "7b2a5d25-a0df-42d7-b015-03719ef50f05",
+      "name": "Google Gemini Chat Model"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"output\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"project_info\": {\n          \"type\": \"object\",\n          \"properties\": {\n            \"name\": { \"type\": \"string\", \"minLength\": 1 },\n            \"description\": { \"type\": \"string\", \"minLength\": 1 }\n          },\n          \"required\": [\"name\", \"description\"],\n          \"additionalProperties\": false\n        },\n        \"complexity_score\": { \"type\": \"number\", \"minimum\": 0, \"maximum\": 1 },\n        \"risks\": {\n          \"type\": \"array\",\n          \"items\": { \"type\": \"string\", \"minLength\": 3 },\n          \"minItems\": 1\n        },\n        \"resource_needs\": {\n          \"type\": \"object\",\n          \"properties\": {\n            \"estimated_hours\": { \"type\": \"number\", \"minimum\": 0 },\n            \"required_skills\": {\n              \"type\": \"array\",\n              \"items\": { \"type\": \"string\", \"minLength\": 2 },\n              \"minItems\": 1\n            },\n            \"team_size\": { \"type\": \"integer\", \"minimum\": 1 }\n          },\n          \"required\": [\"estimated_hours\", \"required_skills\", \"team_size\"],\n          \"additionalProperties\": false\n        },\n        \"timeline_estimate\": {\n          \"type\": \"object\",\n          \"properties\": {\n            \"optimistic\": { \"type\": \"number\", \"minimum\": 0 },\n            \"realistic\": { \"type\": \"number\", \"minimum\": 0 },\n            \"pessimistic\": { \"type\": \"number\", \"minimum\": 0 }\n          },\n          \"required\": [\"optimistic\", \"realistic\", \"pessimistic\"],\n          \"additionalProperties\": false\n        },\n        \"recommendations\": {\n          \"type\": \"array\",\n          \"items\": { \"type\": \"string\", \"minLength\": 3 },\n          \"minItems\": 1\n        }\n      },\n      \"required\": [\n        \"project_info\",\n        \"complexity_score\",\n        \"risks\",\n        \"resource_needs\",\n        \"timeline_estimate\",\n        \"recommendations\"\n      ],\n      \"additionalProperties\": false\n    }\n  },\n  \"required\": [\"output\"],\n  \"additionalProperties\": false\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -592,
+        224
+      ],
+      "id": "f2f99af5-063c-4019-955c-69487e707b9c",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "project_n8n",
+          "mode": "list",
+          "cachedResultName": "project_n8n"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "complexity_score": "={{ $json.output.complexity_score }}",
+            "name_project": "={{ $json.output.project_info.name }}",
+            "description": "={{ $json.output.project_info.description }}",
+            "risks": "={{ $json.output.risks }}",
+            "recommendations": "={{ $json.output.recommendations }}",
+            "required_skill": "={{ $json.output.resource_needs.required_skills }}",
+            "estimated_hours": "={{ $json.output.resource_needs.estimated_hours }}"
+          },
+          "matchingColumns": [
+            "name_project"
+          ],
+          "schema": [
+            {
+              "id": "name_project",
+              "displayName": "name_project",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "complexity_score",
+              "displayName": "complexity_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "risks",
+              "displayName": "risks",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "array",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "estimated_hours",
+              "displayName": "estimated_hours",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "recommendations",
+              "displayName": "recommendations",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "array",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "required_skill",
+              "displayName": "required_skill",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "array",
+              "canBeUsedToMatch": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -368,
+        16
+      ],
+      "id": "996933bb-2b4f-42ed-8f85-e8efb01fc809",
+      "name": "Insert or update rows in a table"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1GIQ9LjMEgVa6cYo1Y6N7mccW6d7BH2ZcVeH4ah5-8Mg/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1GIQ9LjMEgVa6cYo1Y6N7mccW6d7BH2ZcVeH4ah5-8Mg/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "name_project": "={{ $json.output.project_info.name }}",
+            "description": "={{ $json.output.project_info.description }}",
+            "complexity_score": "={{ $json.output.complexity_score }}",
+            "risks": "={{ $json.output.risks }}",
+            "estimated_hours": "={{ $json.output.resource_needs.estimated_hours }}",
+            "required_skill": "={{ $json.output.resource_needs.required_skills }}",
+            "recommendations": "={{ $json.output.recommendations }}"
+          },
+          "matchingColumns": [
+            "name_project"
+          ],
+          "schema": [
+            {
+              "id": "name_project",
+              "displayName": "name_project",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "complexity_score",
+              "displayName": "complexity_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "risks",
+              "displayName": "risks",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "recommendations",
+              "displayName": "recommendations",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "required_skill",
+              "displayName": "required_skill",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "estimated_hours",
+              "displayName": "estimated_hours",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -368,
+        208
+      ],
+      "id": "dc63ea2f-f280-48fb-9cd9-7dda2c2aae10",
+      "name": "Append or update row in sheet"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, message: 'Project created successfully', data: $json.output, timestamp: new Date().toISOString() } }}",
+        "options": {}
+      },
+      "id": "success-response-node-001",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        16
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Project Input Webhook": {
+      "main": [
+        [
+          {
+            "node": "Logging & Monitoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Logging & Monitoring": {
+      "main": [
+        [
+          {
+            "node": "Input Validator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Input Validator": {
+      "main": [
+        [
+          {
+            "node": "Text Extractor",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Validation Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Text Extractor": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validation Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Error Logging",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Logging": {
+      "main": [
+        [
+          {
+            "node": "Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Insert or update rows in a table",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert or update rows in a table": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Success Response": {
+      "main": [
+        []
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "eb7a023b-aea0-4ada-84fd-c6bea3e90f62",
+  "meta": {
+    "instanceId": "38ce93c80ca248ef1c883294aac27571ad8960125d1593457687402789c7b4b1"
+  },
+  "id": "f6mhSm7CAhvmLoQm",
+  "tags": []
+}

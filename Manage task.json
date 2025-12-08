@@ -1,0 +1,344 @@
+{
+  "name": "Manage task",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        320,
+        -208
+      ],
+      "id": "0eae3d47-8048-46d2-8805-07dd42fb59e5",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1GIQ9LjMEgVa6cYo1Y6N7mccW6d7BH2ZcVeH4ah5-8Mg/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1GIQ9LjMEgVa6cYo1Y6N7mccW6d7BH2ZcVeH4ah5-8Mg/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        528,
+        -208
+      ],
+      "id": "76df4e1e-d7ca-477f-8761-5853c197af21",
+      "name": "Get row(s) in sheet"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an expert software project planner and task architect.\nBreak the given project into actionable tasks. Keep the project's name and description exactly as provided.\nReturn ONLY valid JSON that matches the provided schema. No markdown or commentary.\nEnsure total estimated hours across tasks roughly align with project's estimated_hours.\nPrioritize security, compliance, performance, and core UX flows.\n\nProject data:\n{\n  \"name_project\": \"{{ $json.name_project }}\",\n  \"description\": \"{{ $json.description }}\",\n  \"complexity_score\": {{ $json.complexity_score }},\n  \"estimated_hours\": {{ $json.estimated_hours }},\n  \"risks\": {{ JSON.stringify($json.risks || []) }},\n  \"recommendations\": {{ JSON.stringify($json.recommendations || []) }},\n  \"required_skill\": {{ JSON.stringify($json.required_skill || []) }}\n}\n\n",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        784,
+        -208
+      ],
+      "id": "154cc51d-c892-44d4-a599-011f59e71e88",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        592,
+        0
+      ],
+      "id": "8f1ecaf0-8b4d-411d-a963-fe9dee1d9a25",
+      "name": "Google Gemini Chat Model"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "={\n  \"type\": \"object\",\n  \"properties\": {\n    \"project_info\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"name\": { \"type\": \"string\", \"minLength\": 1 },\n        \"description\": { \"type\": \"string\", \"minLength\": 1 }\n      },\n      \"required\": [\"name\", \"description\"]\n    },\n    \"tasks\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"name\": { \"type\": \"string\", \"minLength\": 3 },\n          \"description\": { \"type\": \"string\", \"minLength\": 5 },\n          \"priority\": { \"type\": \"string\", \"enum\": [\"low\",\"medium\",\"high\"] },\n          \"estimated_hours\": { \"type\": \"number\", \"minimum\": 1 },\n          \"required_skills\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n          \"dependencies\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } }\n        },\n        \"required\": [\"name\",\"description\",\"priority\",\"estimated_hours\",\"required_skills\"]\n      }\n    },\n    \"summary\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"total_estimated_hours\": { \"type\": \"number\", \"minimum\": 0 },\n        \"task_count\": { \"type\": \"number\", \"minimum\": 0 },\n        \"key_focus_areas\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } }\n      },\n      \"required\": [\"total_estimated_hours\",\"task_count\",\"key_focus_areas\"]\n    }\n  },\n  \"required\": [\"project_info\",\"tasks\",\"summary\"]\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        944,
+        16
+      ],
+      "id": "8ba5cc59-8d60-4c82-a0f1-4bd35baabbaa",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "output.tasks",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1088,
+        -192
+      ],
+      "id": "faca34a9-1160-4845-8a95-546778540939",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c1e22881-c07f-4f70-9e6d-9170c4e1287a",
+              "name": "Project Name",
+              "value": "={{ $json.name }}",
+              "type": "string"
+            },
+            {
+              "id": "b635acd4-ed4e-4e20-a1bf-379763fd95d3",
+              "name": "Project Description",
+              "value": "={{ $json.description }}",
+              "type": "string"
+            },
+            {
+              "id": "ca7ccae1-7a28-4136-b907-4b5d9a3833a7",
+              "name": "priority",
+              "value": "={{ $json.priority }}",
+              "type": "string"
+            },
+            {
+              "id": "d35b1635-d7bb-4a23-bfeb-c2f76550a5d4",
+              "name": "estimated_hours",
+              "value": "={{ $json.estimated_hours }}",
+              "type": "number"
+            },
+            {
+              "id": "17a2466e-f97d-4dd9-b1e4-92dea3703e03",
+              "name": "required_skills",
+              "value": "={{ $json.required_skills }}",
+              "type": "array"
+            },
+            {
+              "id": "5fad067f-5872-4152-856e-e4cb5e5962c0",
+              "name": "dependencies",
+              "value": "={{ $json.dependencies }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1280,
+        -176
+      ],
+      "id": "29ac75f0-1764-43db-a602-c0c39c7369cc",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1GIQ9LjMEgVa6cYo1Y6N7mccW6d7BH2ZcVeH4ah5-8Mg",
+          "mode": "list",
+          "cachedResultName": "ProjectN8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1GIQ9LjMEgVa6cYo1Y6N7mccW6d7BH2ZcVeH4ah5-8Mg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 2061384931,
+          "mode": "list",
+          "cachedResultName": "Sheet2",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1GIQ9LjMEgVa6cYo1Y6N7mccW6d7BH2ZcVeH4ah5-8Mg/edit#gid=2061384931"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Project Name",
+              "displayName": "Project Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Project Description",
+              "displayName": "Project Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "priority",
+              "displayName": "priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "estimated_hours",
+              "displayName": "estimated_hours",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "required_skills",
+              "displayName": "required_skills",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "dependencies",
+              "displayName": "dependencies",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1488,
+        -176
+      ],
+      "id": "c7810b72-74a1-46e2-9229-1f04e9bb405e",
+      "name": "Append or update row in sheet"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "382d2a6b-b75e-4830-ad3a-900de5db7225",
+  "meta": {
+    "instanceId": "38ce93c80ca248ef1c883294aac27571ad8960125d1593457687402789c7b4b1"
+  },
+  "id": "IEpB7zTzZYbQafSv",
+  "tags": []
+}
