@@ -106,6 +106,33 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// Debug endpoint - check configuration
+app.get("/api/debug/config", (req, res) => {
+  const baseUrl = N8N_BASE_URL.trim().replace(/\/$/, "");
+  const webhookId = WEBHOOK_IDS.PROJECT?.trim() || "NOT_SET";
+  const webhookUrl = `${baseUrl}/webhook/${webhookId}`;
+  
+  let urlValid = false;
+  try {
+    new URL(webhookUrl);
+    urlValid = true;
+  } catch (e) {
+    urlValid = false;
+  }
+  
+  res.json({
+    config: {
+      n8nBaseUrl: N8N_BASE_URL,
+      n8nBaseUrlTrimmed: baseUrl,
+      webhookProjectId: WEBHOOK_IDS.PROJECT,
+      webhookUrl: webhookUrl,
+      urlValid: urlValid,
+      supabaseConfigured: !!supabase,
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Chat endpoint - gửi tin nhắn đến n8n webhook
 app.post("/api/chat", async (req, res) => {
   try {
@@ -333,8 +360,37 @@ app.post("/api/projects", async (req, res) => {
       });
     }
 
-    // Trigger n8n workflow
-    const webhookUrl = `${N8N_BASE_URL}/webhook/${WEBHOOK_IDS.PROJECT}`;
+    // Validate webhook ID
+    if (!WEBHOOK_IDS.PROJECT) {
+      return res.status(500).json({
+        error: "Webhook ID not configured",
+        message: "N8N_WEBHOOK_PROJECT_ID is required in environment variables",
+      });
+    }
+
+    // Build webhook URL
+    const baseUrl = N8N_BASE_URL.trim().replace(/\/$/, ""); // Remove trailing slash
+    const webhookPath = WEBHOOK_IDS.PROJECT.trim();
+    const webhookUrl = `${baseUrl}/webhook/${webhookPath}`;
+
+    // Validate URL format
+    try {
+      new URL(webhookUrl);
+    } catch (urlError) {
+      console.error("Invalid webhook URL:", webhookUrl);
+      return res.status(500).json({
+        error: "Invalid webhook URL configuration",
+        message: `Invalid URL: ${webhookUrl}`,
+        details: {
+          baseUrl: N8N_BASE_URL,
+          webhookId: WEBHOOK_IDS.PROJECT,
+          constructedUrl: webhookUrl,
+        },
+      });
+    }
+
+    console.log("Calling webhook URL:", webhookUrl);
+    console.log("Project data:", JSON.stringify(projectData, null, 2));
 
     const response = await axios.post(webhookUrl, projectData, {
       headers: {
@@ -343,7 +399,21 @@ app.post("/api/projects", async (req, res) => {
         "ngrok-skip-browser-warning": "true", // Bypass ngrok warning page
       },
       timeout: 60000, // 60 seconds timeout for AI processing
+      validateStatus: function (status) {
+        return status < 500; // Don't throw for 4xx errors
+      },
     });
+
+    // Check response status
+    if (response.status >= 400) {
+      console.error("Webhook returned error status:", response.status);
+      console.error("Response data:", response.data);
+      return res.status(response.status).json({
+        error: "Webhook returned error",
+        status: response.status,
+        data: response.data,
+      });
+    }
 
     res.json({
       success: true,
@@ -355,16 +425,34 @@ app.post("/api/projects", async (req, res) => {
     console.error("Create project error:", error.message);
     console.error("Error details:", {
       message: error.message,
+      code: error.code,
       response: error.response?.data,
       status: error.response?.status,
       url: error.config?.url,
+      stack: error.stack,
     });
+    
+    // Check if it's a URL validation error
+    if (error.code === "ERR_INVALID_URL" || error.message.includes("Invalid URL")) {
+      const constructedUrl = error.config?.url || `${N8N_BASE_URL}/webhook/${WEBHOOK_IDS.PROJECT}`;
+      return res.status(500).json({
+        error: "Invalid URL configuration",
+        message: error.message,
+        details: {
+          baseUrl: N8N_BASE_URL,
+          webhookId: WEBHOOK_IDS.PROJECT,
+          constructedUrl: constructedUrl,
+        },
+        hint: "Please check N8N_BASE_URL and N8N_WEBHOOK_PROJECT_ID in your .env file. Make sure there are no extra spaces.",
+      });
+    }
     
     res.status(error.response?.status || 500).json({
       error: "Failed to create project",
       message: error.message,
       details: error.response?.data || error.message,
       url: error.config?.url,
+      code: error.code,
     });
   }
 });
