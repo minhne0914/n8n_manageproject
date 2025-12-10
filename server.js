@@ -14,9 +14,15 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+// Serve simple UI
+app.use(express.static('public'));
 
 // N8N Configuration
+<<<<<<< HEAD
 const N8N_BASE_URL = process.env.N8N_BASE_URL || "http://localhost:5678";
+=======
+const N8N_BASE_URL = (process.env.N8N_BASE_URL || 'https://recursive-lauryn-undefrauded.ngrok-free.dev').trim();
+>>>>>>> bd6cd26 (update server)
 const N8N_API_KEY = process.env.N8N_API_KEY;
 const N8N_WEBHOOK_ID =
   process.env.N8N_WEBHOOK_ID || "0a30838e-59c4-484c-8b87-2d84dc78e992";
@@ -40,8 +46,33 @@ const WEBHOOK_IDS = {
 // Supabase Configuration
 let supabase = null;
 if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
+<<<<<<< HEAD
   supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
   console.log("✅ Supabase client initialized");
+=======
+  // Nếu SUPABASE_URL là PostgreSQL connection string, extract project ref
+  let supabaseUrl = process.env.SUPABASE_URL.trim();
+  
+  // Kiểm tra nếu là PostgreSQL connection string
+  if (supabaseUrl.startsWith('postgresql://')) {
+    // Extract project ref từ connection string
+    // Format: postgresql://postgres:password@db.xxxxx.supabase.co:5432/postgres
+    const match = supabaseUrl.match(/db\.([^.]+)\.supabase\.co/);
+    if (match && match[1]) {
+      supabaseUrl = `https://${match[1]}.supabase.co`;
+      console.log('🔄 Converted PostgreSQL URL to REST API URL:', supabaseUrl);
+    } else {
+      console.error('❌ Could not extract Supabase project ref from connection string');
+    }
+  }
+  
+  if (supabaseUrl.startsWith('https://')) {
+    supabase = createClient(supabaseUrl, process.env.SUPABASE_KEY.trim());
+    console.log('✅ Supabase client initialized');
+  } else {
+    console.log('⚠️  Supabase URL must start with https://');
+  }
+>>>>>>> bd6cd26 (update server)
 } else {
   console.log(
     "⚠️  Supabase not configured (SUPABASE_URL and SUPABASE_KEY required)"
@@ -309,12 +340,27 @@ app.post("/api/projects", async (req, res) => {
 
     // Trigger n8n workflow
     const webhookUrl = `${N8N_BASE_URL}/webhook/${WEBHOOK_IDS.PROJECT}`;
+<<<<<<< HEAD
 
     const response = await axios.post(webhookUrl, projectData, {
       headers: {
         "Content-Type": "application/json",
         "x-user-id": req.headers["x-user-id"] || "anonymous",
       },
+=======
+    
+    console.log('Calling webhook URL:', webhookUrl);
+    console.log('Project data:', JSON.stringify(projectData, null, 2));
+    
+    const response = await axios.post(webhookUrl, projectData, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': req.headers['x-user-id'] || 'anonymous',
+        // Thêm headers cho ngrok nếu cần
+        'ngrok-skip-browser-warning': 'true'
+      },
+      timeout: 30000 // 30 seconds timeout
+>>>>>>> bd6cd26 (update server)
     });
 
     res.json({
@@ -324,10 +370,26 @@ app.post("/api/projects", async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
+<<<<<<< HEAD
     console.error("Create project error:", error.message);
     res.status(500).json({
       error: "Failed to create project",
       message: error.message,
+=======
+    console.error('Create project error:', error.message);
+    console.error('Error details:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      url: error.config?.url
+    });
+    
+    res.status(500).json({
+      error: 'Failed to create project',
+      message: error.message,
+      details: error.response?.data || error.message,
+      url: error.config?.url
+>>>>>>> bd6cd26 (update server)
     });
   }
 });

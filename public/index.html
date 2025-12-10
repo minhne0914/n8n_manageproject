@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>N8N Project Management UI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      margin: 0; padding: 0 16px 48px;
+      background: #0b1021; color: #e8ecf7;
+    }
+    .page { max-width: 1080px; margin: 0 auto; }
+    h1 { font-size: 1.6rem; margin: 24px 0 8px; }
+    h2 { margin-top: 32px; }
+    form {
+      border: 1px solid #1f2a44;
+      padding: 16px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.02);
+      margin-top: 12px;
+    }
+    label { display: block; margin-bottom: 4px; font-weight: 600; }
+    input, textarea, select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #2b3650;
+      border-radius: 8px;
+      background: #0f1429;
+      color: #e8ecf7;
+      margin-bottom: 12px;
+    }
+    button {
+      background: #4f8bff;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #0f1429;
+      border: 1px solid #1f2a44;
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 8px;
+      max-height: 300px;
+      overflow: auto;
+    }
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .card { border: 1px solid #1f2a44; border-radius: 12px; padding: 16px; background: rgba(255,255,255,0.02); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Project Management UI (n8n backend)</h1>
+    <p>Điền thông tin bên dưới để gọi API backend. Đảm bảo backend đang chạy và .env đã cấu hình.</p>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Tạo dự án</h2>
+        <form id="form-project">
+          <label>Project Name</label>
+          <input name="project_name" placeholder="My Project" required />
+          <label>Description</label>
+          <textarea name="description" rows="3" placeholder="Mô tả dự án" required></textarea>
+          <label>Requirements</label>
+          <textarea name="requirements" rows="2" placeholder="Yêu cầu chính"></textarea>
+          <label>Deadline</label>
+          <input name="deadline" type="date" />
+          <label>Budget</label>
+          <input name="budget" type="number" step="0.01" />
+          <label>Team Size</label>
+          <input name="team_size" type="number" min="1" />
+          <label>Priority</label>
+          <select name="priority">
+            <option value="high">High</option>
+            <option value="medium" selected>Medium</option>
+            <option value="low">Low</option>
+          </select>
+          <button type="submit">Submit</button>
+        </form>
+        <pre id="resp-project"></pre>
+      </div>
+
+      <div class="card">
+        <h2>Generate Tasks</h2>
+        <form id="form-tasks">
+          <label>Project Name</label>
+          <input name="projectName" placeholder="My Project" required />
+          <button type="submit">Generate</button>
+        </form>
+        <pre id="resp-tasks"></pre>
+      </div>
+
+      <div class="card">
+        <h2>Generate Assignments</h2>
+        <form id="form-assign">
+          <label>Optional payload (JSON)</label>
+          <textarea name="payload" rows="4" placeholder='{"projectName":"My Project"}'></textarea>
+          <button type="submit">Generate</button>
+        </form>
+        <pre id="resp-assign"></pre>
+      </div>
+
+      <div class="card">
+        <h2>Chat với AI</h2>
+        <form id="form-chat">
+          <label>Message</label>
+          <textarea name="message" rows="3" placeholder="Xin chào..." required></textarea>
+          <label>Session ID</label>
+          <input name="sessionId" placeholder="optional-session-id" />
+          <button type="submit">Send</button>
+        </form>
+        <pre id="resp-chat"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const api = (path, body) => fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    }).then(r => r.json());
+
+    const attachForm = (id, handler, outputId) => {
+      const form = document.getElementById(id);
+      const out = document.getElementById(outputId);
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        out.textContent = 'Loading...';
+        try {
+          const data = Object.fromEntries(new FormData(form).entries());
+          const resp = await handler(data);
+          out.textContent = JSON.stringify(resp, null, 2);
+        } catch (err) {
+          out.textContent = 'Error: ' + err.message;
+        }
+      });
+    };
+
+    attachForm('form-project', (data) => api('/api/projects', data), 'resp-project');
+    attachForm('form-tasks', (data) => api('/api/tasks/generate', data), 'resp-tasks');
+    attachForm('form-assign', (data) => {
+      let payload = {};
+      if (data.payload) {
+        try { payload = JSON.parse(data.payload); } catch (e) {}
+      }
+      return api('/api/assignments/generate', payload);
+    }, 'resp-assign');
+    attachForm('form-chat', (data) => api('/api/chat', data), 'resp-chat');
+  </script>
+</body>
+</html>
+
